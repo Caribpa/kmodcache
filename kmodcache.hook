@@ -1,0 +1,12 @@
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Operation = Remove
+Type = Package
+Target = linux*
+
+[Action]
+Description = Caching kernel's modules to avoid rebooting after upgrade
+When = PreTransaction
+Exec = /etc/pacman.d/hooks/files/kmodcache
+NeedsTargets

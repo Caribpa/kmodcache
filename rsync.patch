@@ -1,0 +1,44 @@
+diff --git a/kmodcache b/kmodcache
+--- a/kmodcache
++++ b/kmodcache
+@@ -26,27 +26,19 @@ eval 'pwhich () {
+     find '$(getconf PATH | tr -s ":" " ")' -name $1 | head -n 1
+ }'
+ 
+-# Minor optimization if we have rsync installed
+-if [ -x "$(pwhich rsync)" ]; then
+-    # Replace the whole files preserving the same inodes and delete on the destination the non-existing files of the source
+-    rsync -a \
+-          -S \
+-          -q \
+-          -L \
+-          --ignore-missing-args \
+-          --inplace \
+-          --whole-file \
+-          --compress-level=0 \
+-          --delete \
+-          --exclude="/${osrelease}/build/" \
+-          "${moddir}" \
+-          "${kmods}"
+-else
+-    # Copy only the necessary files for modprobe to work
+-    rm -r -f "${kmods}/${osrelease}"
+-    mkdir -m 755 -p "${kmods}/${osrelease}"
+-    cp -r -p -L $(find "${moddir}" ! -name "${osrelease}" -prune ! -name build) "${kmods}/${osrelease}"
+-fi
++# Replace the whole files preserving the same inodes and delete on the destination the non-existing files of the source
++rsync -a \
++      -S \
++      -q \
++      -L \
++      --ignore-missing-args \
++      --inplace \
++      --whole-file \
++      --compress-level=0 \
++      --delete \
++      --exclude="/${osrelease}/build/" \
++      "${moddir}" \
++      "${kmods}"
+ 
+ # Create the folder for our temporary kmod launchers if it doesn't exist
+ mkdir -m 755 -p "${binpath}"

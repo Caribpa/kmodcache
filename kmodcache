@@ -1,0 +1,64 @@
+#!/bin/sh -e
+
+# If any of the commands fail (excluding conditionals), the whole script fails
+
+# Can be modified but should be in $PATH as stated in /etc/profile.d/kmodcache.sh
+binpath="/var/run/sbin"
+kmods="/var/run/kmods"
+
+
+## Don't modify below this point
+
+# If the kmods directory already exists is because we already did the copy, so we can exit
+# We should also exit successfully if the name received from stdin doesn't match our running kernel
+if [ -d "${kmods}" ] || ! grep -q -x "$(sed 's/.*initrd[^ ]*fs-\([^\.]*\)\.img.*/\1/' /proc/cmdline)"; then
+    exit 0
+fi
+
+osrelease="$(cat /proc/sys/kernel/osrelease)"
+moddir="/usr/lib/modules/${osrelease}"
+
+# The script fails if the chosen kernel doesn't have modules, which shouldn't be the case
+[ -d "${moddir}" ]
+
+# POSIX which declaration - due to the fact that `command -v` may return built-ins
+eval 'pwhich () {
+    find '$(getconf PATH | tr -s ":" " ")' -name $1 | head -n 1
+}'
+
+# Minor optimization if we have rsync installed
+if [ -x "$(pwhich rsync)" ]; then
+    # Replace the whole files preserving the same inodes and delete on the destination the non-existing files of the source
+    rsync -a \
+          -S \
+          -q \
+          -L \
+          --ignore-missing-args \
+          --inplace \
+          --whole-file \
+          --compress-level=0 \
+          --delete \
+          --exclude="/${osrelease}/build/" \
+          "${moddir}" \
+          "${kmods}"
+else
+    # Copy only the necessary files for modprobe to work
+    rm -r -f "${kmods}/${osrelease}"
+    mkdir -m 755 -p "${kmods}/${osrelease}"
+    cp -r -p -L $(find "${moddir}" ! -name "${osrelease}" -prune ! -name build) "${kmods}/${osrelease}"
+fi
+
+# Create the folder for our temporary kmod launchers if it doesn't exist
+mkdir -m 755 -p "${binpath}"
+
+# Generate the temporary launchers pointing at our cached modules
+echo "$(pwhich modprobe) -S 'cached/${osrelease}' \$@" > "${binpath}/modprobe"
+echo "$(pwhich modinfo) -k 'cached/${osrelease}' \$@" > "${binpath}/modinfo"
+
+# Correct their permissions
+chmod 755 \
+      "${binpath}/modprobe" \
+      "${binpath}/modinfo"
+
+# Point the automatic module loader to the correct path
+echo "${binpath}/modprobe" > /proc/sys/kernel/modprobe
